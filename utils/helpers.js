@@ -170,6 +170,23 @@ const sleep = (ms) => {
   return new Promise((resolve) => setTimeout(resolve, ms));
 };
 
+/**
+ * Generate custom ID if available
+ * This function checks if the ID is valid and not already taken.
+ */
+const generateCustomId = async (id) => {
+  if (!isValidId(id)) {
+    throw new Error("Invalid ID format");
+  }
+
+  const existingUser = await User.findOne({ id });
+  if (existingUser) {
+    throw new Error("ID already taken");
+  }
+
+  return id;
+};
+
 module.exports = {
   generateRandomId,
   generateUniqueId,
@@ -183,4 +200,5 @@ module.exports = {
   validateMessage,
   generateApiKey,
   sleep,
+  generateCustomId,
 };

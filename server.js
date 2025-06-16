@@ -52,7 +52,8 @@ app.get("/", (req, res) => {
     status: "running",
     endpoints: {
       generateId: "GET /api/generate-id",
-      checkId: "GET /api/check-id/:id",
+      checkId: "GET /api/check-id/:userId",
+      customId: "POST /api/custom-id/:id", // Add this line
       createUser: "POST /api/users",
       sendMessage: "POST /api/messages/send",
       getMessages: "GET /api/messages/:recipientId", // Updated parameter name

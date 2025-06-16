@@ -11,6 +11,7 @@ const {
   getPaginationMeta,
   validateMessage,
   sanitizeMessage,
+  generateCustomId,
 } = require("../utils/helpers");
 const {
   strictRateLimit,
@@ -615,6 +616,54 @@ router.get("/users/:userId/exists", validateUserId, async (req, res) => {
           null,
           "Failed to check user existence",
           "CHECK_ERROR"
+        )
+      );
+  }
+});
+
+/**
+ * Generate custom ID if available and create user
+ * POST /api/custom-id/:id
+ */
+router.post("/custom-id/:id", validateUserId, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if ID is available using generateCustomId
+    const customId = await generateCustomId(id);
+
+    // Create user with custom ID
+    const user = new User({ id: customId });
+    await user.save();
+
+    console.log(`✅ Created user with custom ID: ${customId}`);
+
+    res.json(formatResponse(true, { id: customId }));
+  } catch (error) {
+    console.error("Error generating custom ID:", error);
+
+    if (error.message === "ID already taken") {
+      return res
+        .status(409)
+        .json(formatResponse(false, null, "ID already taken", "ID_TAKEN"));
+    }
+
+    if (error.message === "Invalid ID format") {
+      return res
+        .status(400)
+        .json(
+          formatResponse(false, null, "Invalid ID format", "INVALID_FORMAT")
+        );
+    }
+
+    res
+      .status(500)
+      .json(
+        formatResponse(
+          false,
+          null,
+          "Failed to generate custom ID",
+          "GENERATION_ERROR"
         )
       );
   }
