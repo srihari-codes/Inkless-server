@@ -1,7 +1,5 @@
 const rateLimit = require("express-rate-limit");
 const helmet = require("helmet");
-const cors = require("cors");
-const { formatResponse } = require("../utils/helpers");
 
 // Rate limiting configuration
 const createRateLimit = (windowMs = 15 * 60 * 1000, max = 100) => {

@@ -7,10 +7,7 @@ const {
   isValidId,
   createFingerprint,
   formatResponse,
-  parsePagination,
-  getPaginationMeta,
   validateMessage,
-  sanitizeMessage,
   generateCustomId,
 } = require("../utils/helpers");
 const {
@@ -79,64 +76,6 @@ router.get("/check-id/:id", validateUserId, async (req, res) => {
           "Failed to check ID availability",
           "CHECK_ERROR"
         )
-      );
-  }
-});
-
-/**
- * Create a user with custom ID
- * POST /api/users
- */
-router.post("/users", async (req, res) => {
-  try {
-    const { id } = req.body;
-
-    if (!id || !isValidId(id)) {
-      return res
-        .status(400)
-        .json(
-          formatResponse(
-            false,
-            null,
-            "Invalid ID format. Must be exactly 6 digits.",
-            "INVALID_ID"
-          )
-        );
-    }
-
-    // Check if ID is available
-    const available = await isIdAvailable(id);
-    if (!available) {
-      return res
-        .status(409)
-        .json(formatResponse(false, null, "ID already taken", "ID_TAKEN"));
-    }
-
-    // Create user
-    const user = new User({ id });
-    await user.save();
-
-    console.log(`✅ Created user with custom ID: ${id}`);
-
-    res.status(201).json(
-      formatResponse(true, {
-        id: user.id,
-        createdAt: user.createdAt,
-      })
-    );
-  } catch (error) {
-    console.error("Error creating user:", error);
-
-    if (error.code === 11000) {
-      return res
-        .status(409)
-        .json(formatResponse(false, null, "ID already taken", "ID_TAKEN"));
-    }
-
-    res
-      .status(500)
-      .json(
-        formatResponse(false, null, "Failed to create user", "CREATE_ERROR")
       );
   }
 });
@@ -370,130 +309,6 @@ router.get("/messages/:recipientId", validateUserId, async (req, res) => {
           "PROCESS_ERROR"
         )
       );
-  }
-});
-
-/**
- * Mark messages as read
- * PUT /api/messages/:userId/read
- */
-router.put("/messages/:userId/read", validateUserId, async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const { messageIds } = req.body;
-
-    // Check if user exists
-    const user = await User.findOne({ id: userId });
-    if (!user) {
-      return res
-        .status(404)
-        .json(formatResponse(false, null, "User not found", "USER_NOT_FOUND"));
-    }
-
-    let updateQuery = { recipientId: userId };
-
-    // If specific message IDs provided, only update those
-    if (messageIds && Array.isArray(messageIds) && messageIds.length > 0) {
-      updateQuery._id = { $in: messageIds };
-    }
-
-    // Update messages to read
-    const result = await Message.updateMany(updateQuery, { isRead: true });
-
-    console.log(
-      `📖 Marked ${result.modifiedCount} messages as read for user ${userId}`
-    );
-
-    res.json(
-      formatResponse(true, {
-        updated: result.modifiedCount,
-        success: "Messages marked as read",
-      })
-    );
-  } catch (error) {
-    console.error("Error marking messages as read:", error);
-    res
-      .status(500)
-      .json(
-        formatResponse(
-          false,
-          null,
-          "Failed to mark messages as read",
-          "UPDATE_ERROR"
-        )
-      );
-  }
-});
-
-/**
- * Get user statistics
- * GET /api/users/:userId/stats
- */
-router.get("/users/:userId/stats", validateUserId, async (req, res) => {
-  try {
-    const { userId } = req.params;
-
-    // Check if user exists
-    const user = await User.findOne({ id: userId });
-    if (!user) {
-      return res
-        .status(404)
-        .json(formatResponse(false, null, "User not found", "USER_NOT_FOUND"));
-    }
-
-    // Get message statistics
-    const [totalMessages, unreadMessages] = await Promise.all([
-      Message.countDocuments({ recipientId: userId }),
-      Message.countDocuments({ recipientId: userId, isRead: false }),
-    ]);
-
-    res.json(
-      formatResponse(true, {
-        userId,
-        createdAt: user.createdAt,
-        lastActive: user.lastActive,
-        totalMessages,
-        unreadMessages,
-        readMessages: totalMessages - unreadMessages,
-      })
-    );
-  } catch (error) {
-    console.error("Error fetching user stats:", error);
-    res
-      .status(500)
-      .json(
-        formatResponse(
-          false,
-          null,
-          "Failed to fetch user statistics",
-          "STATS_ERROR"
-        )
-      );
-  }
-});
-
-/**
- * Health check endpoint
- * GET /api/health
- */
-router.get("/health", async (req, res) => {
-  try {
-    // Check database connection
-    await User.findOne({}).limit(1);
-
-    res.json({
-      status: "healthy",
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      memory: process.memoryUsage(),
-      database: "connected",
-    });
-  } catch (error) {
-    res.status(503).json({
-      status: "unhealthy",
-      timestamp: new Date().toISOString(),
-      error: "Database connection failed",
-    });
   }
 });
 

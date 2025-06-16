@@ -62,20 +62,6 @@ const createFingerprint = (req) => {
 };
 
 /**
- * Sanitize message content
- */
-const sanitizeMessage = (content) => {
-  if (typeof content !== "string") {
-    return "";
-  }
-
-  return content
-    .trim()
-    .replace(/\s+/g, " ") // Replace multiple spaces with single space
-    .substring(0, 1000); // Limit length
-};
-
-/**
  * Format API response
  */
 const formatResponse = (success, data = null, error = null, code = null) => {
@@ -94,33 +80,6 @@ const formatResponse = (success, data = null, error = null, code = null) => {
   }
 
   return response;
-};
-
-/**
- * Parse pagination parameters
- */
-const parsePagination = (query) => {
-  const page = Math.max(1, parseInt(query.page) || 1);
-  const limit = Math.min(50, Math.max(1, parseInt(query.limit) || 20));
-  const skip = (page - 1) * limit;
-
-  return { page, limit, skip };
-};
-
-/**
- * Calculate pagination metadata
- */
-const getPaginationMeta = (page, limit, total) => {
-  const totalPages = Math.ceil(total / limit);
-
-  return {
-    currentPage: page,
-    totalPages,
-    totalItems: total,
-    itemsPerPage: limit,
-    hasNextPage: page < totalPages,
-    hasPrevPage: page > 1,
-  };
 };
 
 /**
@@ -193,10 +152,7 @@ module.exports = {
   isValidId,
   isIdAvailable,
   createFingerprint,
-  sanitizeMessage,
   formatResponse,
-  parsePagination,
-  getPaginationMeta,
   validateMessage,
   generateApiKey,
   sleep,

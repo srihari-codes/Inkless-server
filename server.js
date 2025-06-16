@@ -52,14 +52,12 @@ app.get("/", (req, res) => {
     status: "running",
     endpoints: {
       generateId: "GET /api/generate-id",
-      checkId: "GET /api/check-id/:userId",
-      customId: "POST /api/custom-id/:id", // Add this line
-      createUser: "POST /api/users",
+      checkId: "GET /api/check-id/:id",
       sendMessage: "POST /api/messages/send",
-      getMessages: "GET /api/messages/:recipientId", // Updated parameter name
-      markAsRead: "PUT /api/messages/:userId/read",
-      getUserStats: "GET /api/users/:userId/stats",
-      health: "GET /api/health",
+      getMessages: "GET /api/messages/:recipientId",
+      deleteUser: "DELETE /api/users/:userId",
+      heartbeat: "PUT /api/users/:userId/heartbeat",
+      userExists: "GET /api/users/:userId/exists",
     },
     timestamp: new Date().toISOString(),
   });
@@ -82,13 +80,12 @@ const server = app.listen(PORT, () => {
 
 Available Endpoints:
   GET    /api/generate-id           - Generate random user ID
-  GET    /api/check-id/:id          - Check if ID is available
-  POST   /api/users                 - Create user with custom ID
-  POST   /api/messages              - Send anonymous message
+  GET    /api/check-id/:userId      - Check if ID is available
+  POST   /api/messages/send         - Send anonymous message
   GET    /api/messages/:userId      - Get messages for user
-  PUT    /api/messages/:userId/read - Mark messages as read
-  GET    /api/users/:userId/stats   - Get user statistics
-  GET    /api/health                - Health check
+  DELETE /api/users/:userId         - Delete user and messages
+  PUT    /api/users/:userId/heartbeat - Update user heartbeat
+  GET    /api/users/:userId/exists  - Check if user exists
   `);
 });
 
