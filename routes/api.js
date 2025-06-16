@@ -496,4 +496,128 @@ router.get("/health", async (req, res) => {
   }
 });
 
+/**
+ * Delete a user and all their messages
+ * DELETE /api/users/:userId
+ */
+router.delete("/users/:userId", validateUserId, async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // Check if user exists
+    const user = await User.findOne({ id: userId });
+    if (!user) {
+      // Return success even if user doesn't exist (idempotent cleanup)
+      return res.json(
+        formatResponse(true, {
+          userId,
+          deletedMessages: 0,
+          message: "User already deleted or never existed",
+        })
+      );
+    }
+
+    // Delete all messages where user is sender or recipient
+    const messageDeleteResult = await Message.deleteMany({
+      $or: [{ senderId: userId }, { recipientId: userId }],
+    });
+
+    // Delete the user
+    await User.deleteOne({ id: userId });
+
+    console.log(
+      `🗑️ Deleted user ${userId} and ${messageDeleteResult.deletedCount} associated messages`
+    );
+
+    res.json(
+      formatResponse(true, {
+        userId,
+        deletedMessages: messageDeleteResult.deletedCount,
+        message: "User and associated data deleted successfully",
+      })
+    );
+  } catch (error) {
+    console.error("Error deleting user:", error);
+
+    // Always return success for cleanup operations to avoid blocking
+    res.json(
+      formatResponse(true, {
+        message: "Cleanup completed with errors",
+        error: error.message,
+      })
+    );
+  }
+});
+
+/**
+ * Update user's last active timestamp
+ * PUT /api/users/:userId/heartbeat
+ */
+router.put("/users/:userId/heartbeat", validateUserId, async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const user = await User.findOneAndUpdate(
+      { id: userId },
+      { lastActive: new Date() },
+      { new: true }
+    );
+
+    if (!user) {
+      return res
+        .status(404)
+        .json(formatResponse(false, null, "User not found", "USER_NOT_FOUND"));
+    }
+
+    res.json(
+      formatResponse(true, {
+        userId,
+        lastActive: user.lastActive,
+      })
+    );
+  } catch (error) {
+    console.error("Error updating heartbeat:", error);
+    res
+      .status(500)
+      .json(
+        formatResponse(
+          false,
+          null,
+          "Failed to update heartbeat",
+          "HEARTBEAT_ERROR"
+        )
+      );
+  }
+});
+
+/**
+ * Check if user still exists (for client validation)
+ * GET /api/users/:userId/exists
+ */
+router.get("/users/:userId/exists", validateUserId, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const user = await User.findOne({ id: userId });
+
+    res.json(
+      formatResponse(true, {
+        exists: !!user,
+        userId,
+      })
+    );
+  } catch (error) {
+    console.error("Error checking user existence:", error);
+    res
+      .status(500)
+      .json(
+        formatResponse(
+          false,
+          null,
+          "Failed to check user existence",
+          "CHECK_ERROR"
+        )
+      );
+  }
+});
+
 module.exports = router;

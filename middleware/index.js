@@ -26,31 +26,14 @@ const generalRateLimit = createRateLimit(15 * 60 * 1000, 100); // 100 requests p
 const strictRateLimit = createRateLimit(5 * 60 * 1000, 10); // 10 requests per 5 minutes for ID generation
 const messageRateLimit = createRateLimit(10 * 60 * 1000, 20); // 20 messages per 10 minutes
 
-// CORS configuration
+// CORS configuration for development
 const corsOptions = {
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-
-    const allowedOrigins = [
-      "http://localhost:3000",
-      "http://localhost:3001",
-      "http://localhost:5173", // Vite default
-      "http://127.0.0.1:5173",
-      // Add your production domain here
-      // 'https://yourdomain.com'
-    ];
-
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      console.warn(`CORS blocked origin: ${origin}`);
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
+  origin: true, // Allow all origins in development
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+  exposedHeaders: ["Content-Length", "X-Requested-With"],
+  maxAge: 86400, // 24 hours
 };
 
 // Security middleware

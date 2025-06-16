@@ -11,6 +11,7 @@ const {
   errorHandler,
   notFoundHandler,
 } = require("./middleware");
+const { User, Message } = require("./models"); // Add this line
 
 // Initialize Express app
 const app = express();
@@ -90,9 +91,43 @@ Available Endpoints:
   `);
 });
 
-// Graceful shutdown
+// Inactive user cleanup function
+const cleanupInactiveUsers = async () => {
+  try {
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+
+    // Find users inactive for more than 10 minutes
+    const inactiveUsers = await User.find({
+      lastActive: { $lt: tenMinutesAgo },
+    });
+
+    for (const user of inactiveUsers) {
+      // Delete messages
+      await Message.deleteMany({
+        $or: [{ senderId: user.id }, { recipientId: user.id }],
+      });
+
+      // Delete user
+      await User.deleteOne({ id: user.id });
+
+      console.log(`🧹 Cleaned up inactive user: ${user.id}`);
+    }
+
+    if (inactiveUsers.length > 0) {
+      console.log(`🧹 Cleaned up ${inactiveUsers.length} inactive users`);
+    }
+  } catch (error) {
+    console.error("Error in cleanup job:", error);
+  }
+};
+
+// Run cleanup every 5 minutes
+const cleanupInterval = setInterval(cleanupInactiveUsers, 5 * 60 * 1000);
+
+// Add cleanup interval to graceful shutdown
 process.on("SIGTERM", () => {
   console.log("🔄 SIGTERM received, shutting down gracefully...");
+  clearInterval(cleanupInterval);
   server.close(() => {
     console.log("🔒 Server closed");
     process.exit(0);
@@ -101,6 +136,7 @@ process.on("SIGTERM", () => {
 
 process.on("SIGINT", () => {
   console.log("🔄 SIGINT received, shutting down gracefully...");
+  clearInterval(cleanupInterval);
   server.close(() => {
     console.log("🔒 Server closed");
     process.exit(0);
