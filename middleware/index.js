@@ -23,7 +23,20 @@ const messageRateLimit = createRateLimit(10 * 60 * 1000, 30); // 30 messages per
 
 // CORS configuration for development
 const corsOptions = {
-  origin: true, // Allow all origins in development
+  origin: function (origin, callback) {
+    const allowedOrigins = [
+      "http://localhost:3000", // dev frontend
+      "https://tempsix-client.vercel.app", // deployed frontend — adjust this
+    ];
+
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.log("❌ Blocked by CORS:", origin);
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  // Allow all origins in development
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
