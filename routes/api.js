@@ -315,10 +315,30 @@ router.get("/messages/:recipientId", validateUserId, async (req, res) => {
 /**
  * Delete a user and all their messages
  * DELETE /api/users/:userId
+ * Now handles both JSON and FormData (for sendBeacon)
  */
 router.delete("/users/:userId", validateUserId, async (req, res) => {
   try {
     const { userId } = req.params;
+    let immediate = false;
+    let reason = "manual";
+
+    // Handle both JSON and FormData
+    if (req.body) {
+      if (req.body.immediate !== undefined) {
+        // JSON request
+        immediate = req.body.immediate;
+        reason = req.body.reason || "manual";
+      } else if (req.body.get) {
+        // FormData request (from sendBeacon)
+        immediate = req.body.get("immediate") === "true";
+        reason = req.body.get("reason") || "beacon";
+      }
+    }
+
+    console.log(
+      `🗑️ Delete request for user ${userId}, immediate: ${immediate}, reason: ${reason}`
+    );
 
     // Check if user exists
     const user = await User.findOne({ id: userId });
@@ -329,39 +349,76 @@ router.delete("/users/:userId", validateUserId, async (req, res) => {
           userId,
           deletedMessages: 0,
           message: "User already deleted or never existed",
+          wasDeleted: false,
+          reason,
         })
       );
     }
 
-    // Delete all messages where user is sender or recipient
-    const messageDeleteResult = await Message.deleteMany({
-      $or: [{ senderId: userId }, { recipientId: userId }],
-    });
+    let deletedMessages = 0;
 
-    // Delete the user
-    await User.deleteOne({ id: userId });
+    if (immediate) {
+      // Immediate deletion (for page unload, etc.)
+      const messageDeleteResult = await Message.deleteMany({
+        $or: [{ senderId: userId }, { recipientId: userId }],
+      });
+      deletedMessages = messageDeleteResult.deletedCount;
 
-    console.log(
-      `🗑️ Deleted user ${userId} and ${messageDeleteResult.deletedCount} associated messages`
-    );
+      await User.deleteOne({ id: userId });
 
-    res.json(
-      formatResponse(true, {
-        userId,
-        deletedMessages: messageDeleteResult.deletedCount,
-        message: "User and associated data deleted successfully",
-      })
-    );
+      console.log(
+        `🗑️ Immediately deleted user ${userId} and ${deletedMessages} messages (reason: ${reason})`
+      );
+
+      return res.json(
+        formatResponse(true, {
+          userId,
+          deletedMessages,
+          message: "User and associated data deleted immediately",
+          wasDeleted: true,
+          reason,
+        })
+      );
+    } else {
+      // Soft delete for graceful cleanup
+      await User.findOneAndUpdate(
+        { id: userId },
+        {
+          markedForDeletion: true,
+          markedAt: new Date(),
+          deleteReason: reason,
+        }
+      );
+
+      console.log(`🏷️ Marked user ${userId} for deletion (reason: ${reason})`);
+
+      return res.json(
+        formatResponse(true, {
+          userId,
+          deletedMessages: 0,
+          message: "User marked for deletion",
+          wasDeleted: false,
+          reason,
+        })
+      );
+    }
   } catch (error) {
     console.error("Error deleting user:", error);
 
-    // Always return success for cleanup operations to avoid blocking
-    res.json(
-      formatResponse(true, {
-        message: "Cleanup completed with errors",
-        error: error.message,
-      })
-    );
+    // For beacon requests, always return success to avoid blocking
+    if (req.body && req.body.get && req.body.get("reason") === "beacon") {
+      return res.json(
+        formatResponse(true, {
+          message: "Cleanup request received with errors",
+          error: error.message,
+        })
+      );
+    }
+
+    // For regular requests, return proper error
+    res
+      .status(500)
+      .json(formatResponse(false, null, error.message, "DELETE_ERROR"));
   }
 });
 

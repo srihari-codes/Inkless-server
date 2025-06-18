@@ -53,6 +53,7 @@ app.get("/", (req, res) => {
     endpoints: {
       generateId: "GET /api/generate-id",
       checkId: "GET /api/check-id/:id",
+      customId: "POST /api/custom-id/:id", // Added this line
       sendMessage: "POST /api/messages/send",
       getMessages: "GET /api/messages/:recipientId",
       deleteUser: "DELETE /api/users/:userId",
@@ -81,6 +82,7 @@ const server = app.listen(PORT, () => {
 Available Endpoints:
   GET    /api/generate-id           - Generate random user ID
   GET    /api/check-id/:userId      - Check if ID is available
+  POST   /api/custom-id/:id         - Set custom user ID  
   POST   /api/messages/send         - Send anonymous message
   GET    /api/messages/:userId      - Get messages for user
   DELETE /api/users/:userId         - Delete user and messages
@@ -92,30 +94,63 @@ Available Endpoints:
 // Inactive user cleanup function
 const cleanupInactiveUsers = async () => {
   try {
-    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    console.log("🧹 Starting cleanup job...");
 
-    // Find users inactive for more than 10 minutes
-    const inactiveUsers = await User.find({
-      lastActive: { $lt: tenMinutesAgo },
+    // First, handle soft-deleted users (marked for deletion)
+    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
+    const softDeletedUsers = await User.find({
+      markedForDeletion: true,
+      markedAt: { $lt: twoMinutesAgo },
     });
 
-    for (const user of inactiveUsers) {
-      // Delete messages
-      await Message.deleteMany({
+    for (const user of softDeletedUsers) {
+      const messageDeleteResult = await Message.deleteMany({
         $or: [{ senderId: user.id }, { recipientId: user.id }],
       });
 
-      // Delete user
       await User.deleteOne({ id: user.id });
 
-      console.log(`🧹 Cleaned up inactive user: ${user.id}`);
+      console.log(
+        `🗑️ Cleaned up soft-deleted user: ${user.id} (${messageDeleteResult.deletedCount} messages)`
+      );
     }
 
+    // Then handle truly inactive users (no heartbeat for 15+ minutes)
+    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+    const inactiveUsers = await User.find({
+      lastActive: { $lt: fifteenMinutesAgo },
+      markedForDeletion: { $ne: true }, // Don't double-process
+    });
+
+    // Mark inactive users for deletion first
     if (inactiveUsers.length > 0) {
-      console.log(`🧹 Cleaned up ${inactiveUsers.length} inactive users`);
+      await User.updateMany(
+        { id: { $in: inactiveUsers.map((user) => user.id) } },
+        {
+          markedForDeletion: true,
+          markedAt: new Date(),
+          deleteReason: "inactivity",
+        }
+      );
+
+      console.log(
+        `🏷️ Marked ${inactiveUsers.length} inactive users for deletion`
+      );
+    }
+
+    // Log cleanup summary
+    const totalProcessed = softDeletedUsers.length + inactiveUsers.length;
+    if (totalProcessed > 0) {
+      console.log(`🧹 Cleanup summary:
+        - Deleted users: ${softDeletedUsers.length}
+        - Marked for deletion: ${inactiveUsers.length}
+        - Total processed: ${totalProcessed}
+      `);
+    } else {
+      console.log("✨ No users needed cleanup");
     }
   } catch (error) {
-    console.error("Error in cleanup job:", error);
+    console.error("💥 Error in cleanup job:", error);
   }
 };
 

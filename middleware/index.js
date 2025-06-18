@@ -12,17 +12,14 @@ const createRateLimit = (windowMs = 15 * 60 * 1000, max = 100) => {
     },
     standardHeaders: true,
     legacyHeaders: false,
-    skip: (req) => {
-      // Skip rate limiting for health checks
-      return req.path === "/health";
-    },
+    skip: (req) => req.path === "/health" || req.path === "/wake",
   });
 };
 
-// Different rate limits for different endpoints
-const generalRateLimit = createRateLimit(15 * 60 * 1000, 100); // 100 requests per 15 minutes
-const strictRateLimit = createRateLimit(5 * 60 * 1000, 10); // 10 requests per 5 minutes for ID generation
-const messageRateLimit = createRateLimit(10 * 60 * 1000, 20); // 20 messages per 10 minutes
+// Adjusted rate limits for free tier
+const generalRateLimit = createRateLimit(15 * 60 * 1000, 50); // 50 requests per 15 minutes
+const strictRateLimit = createRateLimit(5 * 60 * 1000, 5); // 5 requests per 5 minutes
+const messageRateLimit = createRateLimit(10 * 60 * 1000, 30); // 30 messages per 10 minutes
 
 // CORS configuration for development
 const corsOptions = {
